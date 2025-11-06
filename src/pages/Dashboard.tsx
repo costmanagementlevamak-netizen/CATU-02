@@ -1,14 +1,10 @@
-import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  DollarSign, 
-  LogOut, 
-  Clock, 
-  ArrowRightLeft, 
+import {
+  DollarSign,
+  Clock,
+  ArrowRightLeft,
   CheckCircle,
   FileText,
   Settings
@@ -17,69 +13,6 @@ import {
 const Dashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [user, setUser] = useState<any>(null);
-  const [profile, setProfile] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    // Verificar autenticación
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) {
-        navigate("/auth");
-        return;
-      }
-      setUser(session.user);
-      loadProfile(session.user.id);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (!session) {
-        navigate("/auth");
-      } else {
-        setUser(session.user);
-        loadProfile(session.user.id);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [navigate]);
-
-  const loadProfile = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", userId)
-        .single();
-
-      if (error) throw error;
-      setProfile(data);
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: "No se pudo cargar el perfil",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    navigate("/auth");
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4 text-muted-foreground">Cargando...</p>
-        </div>
-      </div>
-    );
-  }
 
   const operacionesCards = [
     {
@@ -126,15 +59,6 @@ const Dashboard = () => {
                 <h1 className="text-xl font-bold">Sistema de Gestión de Efectivo</h1>
                 <p className="text-sm text-muted-foreground">Tienda Catu</p>
               </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <p className="text-sm font-medium">{profile?.nombre_completo}</p>
-                <p className="text-xs text-muted-foreground">{profile?.email}</p>
-              </div>
-              <Button variant="outline" size="icon" onClick={handleSignOut}>
-                <LogOut className="h-4 w-4" />
-              </Button>
             </div>
           </div>
         </div>

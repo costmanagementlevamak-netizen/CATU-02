@@ -44,12 +44,9 @@ const RecepcionTraslado = () => {
 
   const loadData = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        navigate("/auth");
-        return;
-      }
-      setUserId(user.id);
+      // Sin autenticación - usar ID fijo
+      const userId = "00000000-0000-0000-0000-000000000000";
+      setUserId(userId);
 
       // Obtener umbral de diferencia
       const { data: umbralParam } = await supabase

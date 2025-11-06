@@ -6,8 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Clock, Loader2, AlertCircle } from "lucide-react";
+import { ArrowLeft, Clock, Loader2, AlertCircle, Plus, Trash2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const ArqueoCaja = () => {
@@ -25,6 +27,10 @@ const ArqueoCaja = () => {
   });
 
   const [diferencia, setDiferencia] = useState<number | null>(null);
+  const [pagosProveedores, setPagosProveedores] = useState<any[]>([]);
+  const [contadorDocNoAutorizado, setContadorDocNoAutorizado] = useState(1);
+  const [contadorDevolucion, setContadorDevolucion] = useState(1);
+  const [contadorRecepcion, setContadorRecepcion] = useState(1);
 
   useEffect(() => {
     loadData();
@@ -34,20 +40,60 @@ const ArqueoCaja = () => {
     if (formData.montoContado && aperturaActiva) {
       const contado = parseFloat(formData.montoContado);
       const esperado = aperturaActiva.monto_inicial;
-      setDiferencia(contado - esperado);
+      const totalPagos = pagosProveedores.reduce((sum, pago) => sum + (parseFloat(pago.valor) || 0), 0);
+      setDiferencia(contado - esperado + totalPagos);
     } else {
       setDiferencia(null);
     }
-  }, [formData.montoContado, aperturaActiva]);
+  }, [formData.montoContado, aperturaActiva, pagosProveedores]);
+
+  const agregarPagoProveedor = () => {
+    setPagosProveedores([...pagosProveedores, {
+      id: Date.now(),
+      proveedor: "",
+      tipo_documento: "Factura",
+      numero_documento: "",
+      valor: "",
+      saldo: "",
+      pagado_por: ""
+    }]);
+  };
+
+  const eliminarPagoProveedor = (id: number) => {
+    setPagosProveedores(pagosProveedores.filter(pago => pago.id !== id));
+  };
+
+  const actualizarPagoProveedor = (id: number, campo: string, valor: any) => {
+    setPagosProveedores(pagosProveedores.map(pago => {
+      if (pago.id === id) {
+        const updated = { ...pago, [campo]: valor };
+
+        if (campo === "tipo_documento") {
+          if (valor === "Doc. no autorizado") {
+            updated.numero_documento = `DNA-${String(contadorDocNoAutorizado).padStart(4, "0")}`;
+            setContadorDocNoAutorizado(contadorDocNoAutorizado + 1);
+          } else if (valor === "Devolución") {
+            updated.numero_documento = `DEV-${String(contadorDevolucion).padStart(4, "0")}`;
+            setContadorDevolucion(contadorDevolucion + 1);
+          } else if (valor === "Recepción") {
+            updated.numero_documento = `REC-${String(contadorRecepcion).padStart(4, "0")}`;
+            setContadorRecepcion(contadorRecepcion + 1);
+          } else {
+            updated.numero_documento = "";
+          }
+        }
+
+        return updated;
+      }
+      return pago;
+    }));
+  };
 
   const loadData = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        navigate("/auth");
-        return;
-      }
-      setUserId(user.id);
+      // Sin autenticación - usar ID fijo
+      const userId = "00000000-0000-0000-0000-000000000000";
+      setUserId(userId);
 
       // Obtener umbral de diferencia
       const { data: umbralParam } = await supabase
@@ -75,7 +121,7 @@ const ArqueoCaja = () => {
             fecha_hora
           )
         `)
-        .eq("usuario_id", user.id)
+        .eq("usuario_id", userId)
         .eq("estado", "abierto")
         .order("created_at", { ascending: false });
 
@@ -136,7 +182,7 @@ const ArqueoCaja = () => {
       const diferenciaFinal = montoContado - montoEsperado;
 
       // Crear arqueo
-      const { error: arqueoError } = await supabase
+      const { data: arqueoData, error: arqueoError } = await supabase
         .from("arqueos")
         .insert({
           apertura_id: aperturaActiva.apertura_id,
@@ -144,7 +190,9 @@ const ArqueoCaja = () => {
           monto_esperado: montoEsperado,
           diferencia: diferenciaFinal,
           comentario: formData.comentario || null,
-        });
+        })
+        .select()
+        .single();
 
       if (arqueoError) throw arqueoError;
 
@@ -268,6 +316,130 @@ const ArqueoCaja = () => {
               <span className="text-muted-foreground">Monto inicial:</span>
               <span className="font-medium text-lg">${aperturaActiva.monto_inicial.toFixed(2)}</span>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card className="mb-4">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Pagos a Proveedores</CardTitle>
+                <CardDescription>
+                  Registra los pagos realizados durante el turno
+                </CardDescription>
+              </div>
+              <Button type="button" size="sm" onClick={agregarPagoProveedor}>
+                <Plus className="h-4 w-4 mr-1" />
+                Agregar Pago
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {pagosProveedores.length === 0 ? (
+              <p className="text-center text-muted-foreground py-4">No hay pagos registrados</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="min-w-[150px]">Proveedor</TableHead>
+                      <TableHead className="min-w-[150px]">Documento</TableHead>
+                      <TableHead className="min-w-[150px]">Número</TableHead>
+                      <TableHead className="min-w-[120px]">Valor</TableHead>
+                      <TableHead className="min-w-[120px]">Saldo</TableHead>
+                      <TableHead className="min-w-[150px]">Pagado por</TableHead>
+                      <TableHead className="w-[50px]"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pagosProveedores.map((pago) => (
+                      <TableRow key={pago.id}>
+                        <TableCell>
+                          <Input
+                            value={pago.proveedor}
+                            onChange={(e) => actualizarPagoProveedor(pago.id, "proveedor", e.target.value)}
+                            placeholder="Nombre del proveedor"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Select
+                            value={pago.tipo_documento}
+                            onValueChange={(value) => actualizarPagoProveedor(pago.id, "tipo_documento", value)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Factura">Factura</SelectItem>
+                              <SelectItem value="Nota de venta">Nota de venta</SelectItem>
+                              <SelectItem value="Doc. no autorizado">Doc. no autorizado</SelectItem>
+                              <SelectItem value="Devolución">Devolución</SelectItem>
+                              <SelectItem value="Recepción">Recepción</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            value={pago.numero_documento}
+                            onChange={(e) => actualizarPagoProveedor(pago.id, "numero_documento", e.target.value)}
+                            placeholder="Número"
+                            disabled={["Doc. no autorizado", "Devolución", "Recepción"].includes(pago.tipo_documento)}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={pago.valor}
+                            onChange={(e) => actualizarPagoProveedor(pago.id, "valor", e.target.value)}
+                            placeholder="0.00"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={pago.saldo}
+                            onChange={(e) => actualizarPagoProveedor(pago.id, "saldo", e.target.value)}
+                            placeholder="0.00"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            value={pago.pagado_por}
+                            onChange={(e) => actualizarPagoProveedor(pago.id, "pagado_por", e.target.value)}
+                            placeholder="Empleado"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => eliminarPagoProveedor(pago.id)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+            {pagosProveedores.length > 0 && (
+              <div className="mt-4 flex justify-end">
+                <div className="space-y-1 text-right">
+                  <p className="text-sm text-muted-foreground">
+                    Total Pagado: ${pagosProveedores.reduce((sum, pago) => sum + (parseFloat(pago.valor) || 0), 0).toFixed(2)}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Total Saldo: ${pagosProveedores.reduce((sum, pago) => sum + (parseFloat(pago.saldo) || 0), 0).toFixed(2)}
+                  </p>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 

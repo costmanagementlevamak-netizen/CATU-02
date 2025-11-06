@@ -32,12 +32,9 @@ const AperturaCaja = () => {
   const loadData = async () => {
     try {
       // Obtener usuario actual
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        navigate("/auth");
-        return;
-      }
-      setUserId(user.id);
+      // Sin autenticación - usar ID fijo
+      const userId = "00000000-0000-0000-0000-000000000000";
+      setUserId(userId);
 
       // Cargar cajas activas
       const { data: cajasData, error: cajasError } = await supabase

@@ -23,11 +23,8 @@ const TrasladoEfectivo = () => {
 
   const loadData = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        navigate("/auth");
-        return;
-      }
+      // Sin autenticación - usar ID fijo
+      const userId = "00000000-0000-0000-0000-000000000000";
 
       // Buscar último arqueo sin traslado
       const { data: arqueosData } = await supabase
